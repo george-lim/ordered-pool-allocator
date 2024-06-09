@@ -1,0 +1,16 @@
+[package]
+name = "ordered-pool-allocator"
+version = "0.1.0"
+authors = ["George Lim <lim.george@me.com>"]
+edition = "2021"
+description = "A fast and compact pool allocator with block sorting support."
+repository = "https://github.com/george-lim/ordered-pool-allocator"
+license = "MIT OR Apache-2.0"
+keywords = ["allocator", "memory-pool"]
+categories = ["data-structures", "memory-management"]
+
+[dev-dependencies]
+rand = "0.8"
+
+[profile.test]
+opt-level = 3
