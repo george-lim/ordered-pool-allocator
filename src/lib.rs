@@ -8,13 +8,10 @@ use std::{
 };
 
 /// An allocator for `T` objects, with a block index of `N` bytes.
-///
-/// If `N` is 1, then `blocks_capacity` will be `u8::MAX`.
-/// If `N` is 2, then `blocks_capacity` will be `u16::MAX`.
 pub struct OrderedPoolAllocator<'buf, T, const N: usize = { mem::size_of::<usize>() }> {
+    physical_blocks_ptr: *mut MaybeUninit<T>,
     physical_block_indices_ptr: *mut [u8; N],
     virtual_block_indices_ptr: *mut [u8; N],
-    physical_blocks_ptr: *mut MaybeUninit<T>,
     blocks_len: usize,
     deallocated_blocks_len: usize,
     blocks_capacity: usize,
@@ -25,18 +22,21 @@ impl<'buf, T, const N: usize> OrderedPoolAllocator<'buf, T, N> {
     pub fn new_in(buf: &'buf mut [u8]) -> Self {
         let blocks_capacity = usize::MAX
             .min(2usize.pow(8).pow(N as u32) - 1)
-            .min(buf.len() / (2 * mem::size_of::<[u8; N]>() + mem::size_of::<MaybeUninit<T>>()));
+            .min(buf.len() / (mem::size_of::<MaybeUninit<T>>() + 2 * mem::size_of::<[u8; N]>()));
 
         unsafe {
             Self {
-                physical_block_indices_ptr: buf.as_mut_ptr().cast(),
+                physical_blocks_ptr: buf.as_mut_ptr().cast(),
+                physical_block_indices_ptr: buf
+                    .as_mut_ptr()
+                    .add(blocks_capacity * mem::size_of::<MaybeUninit<T>>())
+                    .cast(),
                 virtual_block_indices_ptr: buf
                     .as_mut_ptr()
-                    .add(blocks_capacity * mem::size_of::<[u8; N]>())
-                    .cast(),
-                physical_blocks_ptr: buf
-                    .as_mut_ptr()
-                    .add(2 * blocks_capacity * mem::size_of::<[u8; N]>())
+                    .add(
+                        blocks_capacity
+                            * (mem::size_of::<MaybeUninit<T>>() + mem::size_of::<[u8; N]>()),
+                    )
                     .cast(),
                 blocks_len: 0,
                 deallocated_blocks_len: 0,
@@ -48,12 +48,12 @@ impl<'buf, T, const N: usize> OrderedPoolAllocator<'buf, T, N> {
 
     /// Allocates a block and returns a pointer to the block.
     ///
-    /// This method will always prioritize reallocating an existing deallocated block over allocating
-    /// a new block.
+    /// This method will always prioritize reallocating an existing deallocated block over allocating a new block.
     ///
     /// # Safety
     ///
-    /// Behavior is undefined if the returned pointer points to an uninitialized instance of `T` when the allocator is dropped.
+    /// Behavior is undefined if the returned pointer points to an uninitialized instance of `T` when the allocator is
+    /// dropped.
     pub unsafe fn allocate(&mut self) -> Result<NonNull<T>, AllocError> {
         let physical_block_index = match self.deallocated_blocks_len {
             0 if self.is_full() => return Err(AllocError),
@@ -96,7 +96,6 @@ impl<'buf, T, const N: usize> OrderedPoolAllocator<'buf, T, N> {
     /// Behavior is undefined if any of the following conditions are violated:
     ///
     /// * `ptr` must point to an instance of `T` allocated by this allocator.
-    ///
     /// * `ptr` must not point to an instance of `T` that has already been dropped or deallocated by this allocator.
     pub unsafe fn deallocate(&mut self, ptr: NonNull<T>) {
         if self.is_empty() {
@@ -206,10 +205,6 @@ impl<'buf, T, const N: usize> OrderedPoolAllocator<'buf, T, N> {
     }
 
     fn usize_to_bytes(block_index: usize) -> [u8; N] {
-        if N == mem::size_of::<usize>() {
-            unsafe { return *block_index.to_le_bytes().as_ptr().cast() }
-        }
-
         let mut buf = [0u8; N];
 
         unsafe {
@@ -327,7 +322,7 @@ mod tests {
         }
 
         unsafe fn deallocate(sut: &mut OrderedPoolAllocator<SecureU32, 1>, rng: &mut ThreadRng) {
-            let i = rng.gen_range(0..sut.len());
+            let i = rng.random_range(0..sut.len());
             let ptr = NonNull::new_unchecked(sut[i].as_mut_ptr());
             sut.deallocate(ptr);
             assert_eq!(0, ptr.as_ref().0)
@@ -336,14 +331,14 @@ mod tests {
         unsafe {
             let mut buf = [0u8; 128];
             let mut sut = OrderedPoolAllocator::<SecureU32, 1>::new_in(&mut buf);
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
 
             for _ in 0..20_000_000 {
                 if sut.is_empty() {
                     allocate(&mut sut, u32::MAX)
                 } else if sut.is_full() {
                     deallocate(&mut sut, &mut rng)
-                } else if rng.gen_bool(0.5) {
+                } else if rng.random_bool(0.5) {
                     allocate(&mut sut, u32::MAX)
                 } else {
                     deallocate(&mut sut, &mut rng)

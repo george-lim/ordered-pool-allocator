@@ -26,4 +26,4 @@ In order to achieve the fastest time complexity for block allocation and dealloc
 
 ### Memory Layout
 
-![memory-layout](https://github.com/george-lim/ordered-pool-allocator/assets/21700768/24c78c1d-e0d4-48ce-9d0d-963fb45dde9b)
+![memory-layout](https://github.com/user-attachments/assets/994064e0-f7ae-44ea-ab9b-1973fdff7985)

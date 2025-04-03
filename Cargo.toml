@@ -1,6 +1,6 @@
 [package]
 name = "ordered-pool-allocator"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["George Lim <lim.george@me.com>"]
 edition = "2021"
 description = "A fast and compact pool allocator with block sorting support."
@@ -10,7 +10,7 @@ keywords = ["allocator", "memory-pool"]
 categories = ["data-structures", "memory-management"]
 
 [dev-dependencies]
-rand = "0.8"
+rand = "0.9"
 
 [profile.test]
 opt-level = 3
