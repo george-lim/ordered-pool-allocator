@@ -205,10 +205,6 @@ impl<'buf, T, const N: usize> OrderedPoolAllocator<'buf, T, N> {
     }
 
     fn usize_to_bytes(block_index: usize) -> [u8; N] {
-        if N == mem::size_of::<usize>() {
-            unsafe { return *block_index.to_le_bytes().as_ptr().cast() }
-        }
-
         let mut buf = [0u8; N];
 
         unsafe {
